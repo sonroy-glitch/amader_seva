@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+// Morning 9-12, Afternoon 12-4, Evening 4-8
+enum Slot {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+// HELD (5 min) -> PENDING (waiting for the provider) -> CONFIRMED -> COMPLETED
+enum BookingStatus {
+  HELD
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  phone     String
+  password  String
+  role      Role
+
+  // Forgot password: hashed OTP, when it expires, wrong tries so far
+  resetOtp          String?
+  resetOtpExpiresAt DateTime?
+  resetOtpAttempts  Int       @default(0)
+
+  // Logins made before this time are logged out (set when the password is reset)
+  passwordChangedAt DateTime?
+
+  // Admin can block a user; blocked users can't log in or use the site
+  isBlocked Boolean  @default(false)
+
+  provider  Provider?
+  bookings  Booking[]
+  addresses Address[]
+
+  createdAt DateTime @default(now())
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+
+  providers   ProviderService[]
+  jobs        ServiceJob[]
+  bookings    Booking[]
+
+  createdAt   DateTime @default(now())
+}
+
+model Provider {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+
+  bio         String?
+  area        String
+  pincode     String
+  experience  Int      @default(0)
+
+  // Providers work every day; they choose which time slots they take
+  slots       Slot[]
+
+  isVerified  Boolean  @default(false)
+  isAvailable Boolean  @default(true)
+
+  // Set when the admin rejects the profile; cleared when the provider saves it again
+  rejectReason String?
+
+  user        User     @relation(fields: [userId], references: [id])
+  services    ProviderService[]
+  jobs        ProviderJob[]
+  bookings    Booking[]
+
+  createdAt   DateTime @default(now())
+}
+
+// The provider offers this service. Their prices are in ProviderJob.
+model ProviderService {
+  id         Int      @id @default(autoincrement())
+  providerId Int
+  serviceId  Int
+
+  provider   Provider @relation(fields: [providerId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
+
+  @@unique([providerId, serviceId])
+}
+
+model Booking {
+  id          Int           @id @default(autoincrement())
+
+  customerId  Int
+  providerId  Int
+  serviceId   Int
+
+  date        DateTime      @db.Date
+  slot        Slot
+  address     String?
+  problem     String?
+  // What the customer chose, and the provider's price for it at that time.
+  // agreedPrice is the lowest, maxPrice the highest (same number for a fixed price).
+  jobId       Int?
+  agreedPrice Int?
+  maxPrice    Int?
+
+  status      BookingStatus @default(HELD)
+  heldUntil   DateTime?
+  // The provider must accept or decline by this time, or the request closes (EXPIRED)
+  replyBy     DateTime?
+
+  // "providerId-date-slot" while the booking is active, null once cancelled.
+  // The unique rule stops two bookings from taking the same slot.
+  slotKey     String?       @unique
+
+  // 4-digit code the customer gives the provider on arrival. The provider enters it
+  // to start the work, which proves they came. Wrong tries are counted.
+  startCode         String?
+  startCodeAttempts Int       @default(0)
+  startedAt         DateTime?
+  // The provider said the customer would not give the code (admin sorts it out)
+  codeProblemAt     DateTime?
+
+  // Who cancelled: CUSTOMER, DECLINED (provider said no to a request),
+  // PROVIDER (after accepting), NO_SHOW (provider did not come) or ADMIN
+  cancelledBy   String?
+  cancelReason  String?
+
+  customer    User          @relation(fields: [customerId], references: [id])
+  provider    Provider      @relation(fields: [providerId], references: [id])
+  service     Service       @relation(fields: [serviceId], references: [id])
+  job         ServiceJob?   @relation(fields: [jobId], references: [id])
+
+  createdAt   DateTime      @default(now())
+}
+
+// Addresses a customer has booked for, so they can pick one next time
+model Address {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+
+  house     String
+  area      String
+  landmark  String   @default("")
+  city      String
+  pincode   String
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// Sign up: the code emailed to check the email is real, before the account is made
+model SignupOtp {
+  email     String   @id
+  otp       String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+}
+
+// The jobs customers can choose for a service, for example "Fan install or repair".
+// The list is set by us (prisma/seed.js), not by providers.
+model ServiceJob {
+  id        Int     @id @default(autoincrement())
+  serviceId Int
+  name      String
+  // "Not sure, needs checking": the price is the provider's visit charge
+  isCheckup Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  service   Service       @relation(fields: [serviceId], references: [id])
+  providers ProviderJob[]
+  bookings  Booking[]
+
+  @@unique([serviceId, name])
+}
+
+// A provider's price for one job: a fixed price (min = max) or a short range
+model ProviderJob {
+  id         Int        @id @default(autoincrement())
+  providerId Int
+  jobId      Int
+  minPrice   Int
+  maxPrice   Int
+
+  provider   Provider   @relation(fields: [providerId], references: [id])
+  job        ServiceJob @relation(fields: [jobId], references: [id])
+
+  @@unique([providerId, jobId])
+}

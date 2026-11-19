@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f5efe3;
+  --color-card: #fbf8f2;
+  --color-sand: #ede5d5;
+  --color-line: #e0d6c3;
+  --color-ink: #1d2b25;
+  --color-muted: #66675b;
+  --color-green: #1f5a4a;
+  --color-green-dark: #164336;
+  --color-green-soft: #dfe9e2;
+  --color-marigold: #d9982f;
+  --color-marigold-soft: #f5e6c6;
+  --color-danger: #a23b2a;
+  --color-danger-soft: #f6e1da;
+
+  --font-sans: "Hanken Grotesk", "Anek Bangla", ui-sans-serif, system-ui, sans-serif;
+  /* Clash Grotesk has English letters only, so Bengali falls back to Anek Bangla */
+  --font-display: "Clash Grotesk", "Anek Bangla", "Hanken Grotesk", ui-sans-serif, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Clash Grotesk is loaded in 400, 500 and 600: never fake a bolder version */
+    font-synthesis-weight: none;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-ink;
+    font-stretch: 88%;
+    text-wrap: balance;
+  }
+  ::selection {
+    @apply bg-marigold-soft;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-green;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-green text-paper hover:bg-green-dark;
+}
+@utility btn-outline {
+  @apply btn border border-line bg-card text-ink hover:border-ink/40;
+}
+@utility btn-quiet {
+  @apply btn px-3 text-green hover:bg-green-soft;
+}
+@utility btn-danger {
+  @apply btn border border-danger/30 bg-card text-danger hover:bg-danger-soft;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-semibold text-ink;
+}
+@utility input {
+  @apply block w-full rounded-lg border border-line bg-card px-3.5 py-3 text-[15px] text-ink placeholder:text-muted/70 transition-colors hover:border-ink/30 focus:border-green focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-green/20;
+}
+@utility card {
+  @apply rounded-2xl border border-line bg-card;
+}
+@utility container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+}
+
+/* Bengali letters sit taller than English ones, so tight heading line heights would cut them off */
+html:lang(bn) :is(h1, h2, h3) {
+  line-height: 1.25;
+  letter-spacing: normal;
+}
+
+/* English headings: a little bigger (Clash Grotesk's x-height is 0.5, so 0.54 = 8% bigger)
+   and a little more space between letters. Kept outside a layer so it wins over
+   tracking-tight on headings. Bengali stays as it is. */
+html:lang(en) :is(h1, h2, h3, .font-display) {
+  font-size-adjust: 0.54;
+  letter-spacing: 0.02em;
+}
